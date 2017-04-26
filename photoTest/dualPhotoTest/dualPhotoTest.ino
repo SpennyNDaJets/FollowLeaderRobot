@@ -5,7 +5,6 @@ void setup() {
 }
 
 unsigned long checkSensor(int pin){
-    // left photosensor
   pinMode(pin, OUTPUT);     //set to output
   digitalWrite(pin, HIGH);  //set high
   delay(1);                       //charge cap
@@ -14,8 +13,7 @@ unsigned long checkSensor(int pin){
   unsigned long s = micros();     //start timing
   
   while(digitalRead(pin) == HIGH){ 
-  }
-  
+  } 
   return micros() - s; // find final time
 }
 
@@ -23,10 +21,12 @@ unsigned long checkSensor(int pin){
 void loop() {
   // put your main code here, to run repeatedly:
     Serial.print("Left Sensor: ");
-    Serial.println(checkSensor(13));
+    unsigned long left = checkSensor(13);
+    Serial.println(left);
 
     Serial.print("Right Sensor: ");
-    Serial.println(checkSensor(12));
+    unsigned long right = checkSensor(12);
+    Serial.println(right);
     Serial.println();
     delay(1000);
 }
