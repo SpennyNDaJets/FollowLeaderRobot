@@ -230,7 +230,7 @@ void turnRight() {
   digitalWrite(rightIn2, HIGH);
   digitalWrite(leftIn1, HIGH);
 
-  turnTimer.start(820);
+  turnTimer.start(830);
   while(!turnTimer.checkExpired()){
   }
 
@@ -274,7 +274,7 @@ void turnLeft() {
   digitalWrite(rightIn1, HIGH);
   digitalWrite(leftIn2, HIGH);
 
-  turnTimer.start(820);
+  turnTimer.start(830);
   while(!turnTimer.checkExpired()){
   }
 
