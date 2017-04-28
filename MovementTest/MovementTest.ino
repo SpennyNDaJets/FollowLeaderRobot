@@ -1,6 +1,6 @@
 #include "EventTimer.h"
 
-EventTimer calibrator;
+EventTimer turnTimer;
 
 // pin numbers
 int PWMright = 5;
@@ -14,15 +14,15 @@ int leftPhoto = 13;
 int rightPhoto = 12;
 
 // line thresholds
-unsigned long leftThres = 1000;
-unsigned long rightThres = 1500;
+unsigned long leftThres;
+unsigned long rightThres;
 
 
 // current speed
-int currSpeed = 50;
+int currSpeed = 40;
 
 // turn speed
-int turnSpeed = 10;
+int turnSpeed = 25;
 
 // turn booleans
 bool prepLeft = false;
@@ -205,10 +205,43 @@ void checkTurnSignal(int ts) {
 //turn right
 void turnRight() {
   Serial.println("Turn right");
-  Serial.println(turnSpeed);
-  digitalWrite(PWMright, turnSpeed/4);
-  digitalWrite(PWMleft, turnSpeed);
+  //stop
+  digitalWrite(rightIn1, LOW);
+  digitalWrite(leftIn1, LOW);
 
+  //delay(1000);
+
+  // continue forward to center of intersection
+  digitalWrite(rightIn1, HIGH);
+  digitalWrite(leftIn1, HIGH);
+  analogWrite(PWMright, turnSpeed);
+  analogWrite(PWMleft, turnSpeed);
+  turnTimer.start(400);
+  while(!turnTimer.checkExpired()){
+  }
+
+   //stop
+  digitalWrite(rightIn1, LOW);
+  digitalWrite(leftIn1, LOW);
+
+  //delay(1000);
+
+  // turn right
+  digitalWrite(rightIn2, HIGH);
+  digitalWrite(leftIn1, HIGH);
+
+  turnTimer.start(820);
+  while(!turnTimer.checkExpired()){
+  }
+
+  // stop
+  digitalWrite(rightIn2, LOW);
+  digitalWrite(leftIn1, LOW);
+
+  //continue straight
+  digitalWrite(rightIn1, HIGH);
+  digitalWrite(leftIn1, HIGH);
+  
   // reset turnSignal
   prepRight = false;
 }
@@ -216,10 +249,43 @@ void turnRight() {
 // turn left
 void turnLeft() {
   Serial.println("Turn left");
-  digitalWrite(PWMright, turnSpeed);
-  digitalWrite(PWMleft, turnSpeed/4);
-  delay(1000);
+  //stop
+  digitalWrite(rightIn1, LOW);
+  digitalWrite(leftIn1, LOW);
 
+  //delay(1000);
+
+  // continue to center of intersection
+  digitalWrite(rightIn1, HIGH);
+  digitalWrite(leftIn1, HIGH);
+  analogWrite(PWMright, turnSpeed);
+  analogWrite(PWMleft, turnSpeed);
+  turnTimer.start(400);
+  while(!turnTimer.checkExpired()){
+  }
+
+   //stop
+  digitalWrite(rightIn1, LOW);
+  digitalWrite(leftIn1, LOW);
+
+  //delay(1000);
+
+  // turn left 
+  digitalWrite(rightIn1, HIGH);
+  digitalWrite(leftIn2, HIGH);
+
+  turnTimer.start(820);
+  while(!turnTimer.checkExpired()){
+  }
+
+  // stop
+  digitalWrite(rightIn1, LOW);
+  digitalWrite(leftIn2, LOW);
+
+  //continue straight
+  digitalWrite(rightIn1, HIGH);
+  digitalWrite(leftIn1, HIGH);
+  
   // reset turnSignal
   prepLeft = false;
 }
@@ -238,6 +304,7 @@ void loop() {
   Serial.print(left);
   Serial.print(" ");
   Serial.println(right);
+  
   // continue if on line
   if ((left < leftThres) && (right < rightThres)) {
     analogWrite(PWMright, currSpeed);
@@ -260,13 +327,13 @@ void loop() {
 
   //slow left wheel if left sensor is high
   else if (left >= leftThres) {
-    analogWrite(PWMleft, currSpeed - 20);  // 28 = 1 V for 9 V source
+    analogWrite(PWMleft, currSpeed - 18);  // 28 = 1 V for 9 V source
     Serial.println("Left is dark");
   }
 
   //slow right wheel if right sensor is high
   else if (right >= rightThres) {
-    analogWrite(PWMright, currSpeed - 20);
+    analogWrite(PWMright, currSpeed - 18);
     Serial.println("Right is dark");
   }
 
