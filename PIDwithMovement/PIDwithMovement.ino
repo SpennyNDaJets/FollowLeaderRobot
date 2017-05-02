@@ -17,25 +17,9 @@ int rightPhoto = 12;
 unsigned long leftThres;
 unsigned long rightThres;
 
-// ultrasonic sensor variables
-int TRIGGER = 10;
-int ECHO = 3;
-double dist;
-double duration;
-double targetDistance = 0.5; // in meters
-double Ki = 0.75; //change these values
-double Kd=0; //change these values
-double Kp= 70; //change these values
-double sumError = 0;
-double prevDist = 0;
-
-unsigned long startTime;
-unsigned long endTime;
-int delta;
-bool newReading;
 
 // current speed
-int currSpeed; //set the value in setup (when we can see his robot)
+int currSpeed = 40;
 
 // turn speed
 int turnSpeed = 25;
@@ -61,10 +45,6 @@ void setup() {
   digitalWrite(leftIn2, LOW);
   digitalWrite(leftIn1, HIGH);
 
-  // ultrasonic sensor setup
-  pinMode(TRIGGER, OUTPUT); //trigger 
-  pinMode(ECHO, INPUT); //echo 
-
   //disable interrupts
   cli();
 
@@ -85,42 +65,12 @@ void setup() {
   //re-enable interrupts
   sei();
 
-  // set up interupt to catch retrievial of Ultasonic
-  attachInterrupt(1, detectEcho, FALLING);
-
   //calibrate sensors
   calibrate();
-
-  //start taking reading
-  takeReading();
 
   Serial.println("Beginning");
 }
 
-// send of signal of ultrasonic
-void takeReading(){
-  digitalWrite(TRIGGER, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIGGER, LOW);
-
-  // start timing
-  startTime = micros();
-
-  newReading = false;
-}
-
-// retreive echo
-void detectEcho(){
-  endTime = micros();
-  delta = endTime - startTime;
-//  Serial.print("Start Time: ");
-//  Serial.println(startTime);
-//  Serial.print("End Time: ");
-//  Serial.println(endTime);
-//  Serial.print("Delta: ");
-//  Serial.println(delta);
-  newReading = true;
-}
 
 // check line sensor
 unsigned long checkSensor(int pin) {
@@ -138,52 +88,6 @@ unsigned long checkSensor(int pin) {
   return micros() - s;            // find final time
 }
 
-// distance calculation
-double distance() { //in meters
-  double s = 343; // speed of sound in meters/s 
-  double durationSeconds = ((delta/2.0)/1000000);
-  double distance = (durationSeconds*s);
-  return distance - 0.15;
-}
-
-// PID algorithm
-void PID() {
-  
-  double actualDistance = distance();
-  
-  if ((prevDist - actualDistance > 0.15 || prevDist - actualDistance < -0.15) && prevDist != 0){
-    actualDistance = prevDist;
-    Serial.println("ACTUAL = PREV");
-  }
-  
-  double error = actualDistance - targetDistance; //gives us voltage (val between 0 to 255)
-
-  prevDist = actualDistance;
-  
-    
-//  sumError += error;
-//  if(sumError > 5) sumError = 2;
-//  if(sumError < 0) sumError = 0; 
-//
-  Serial.print("actualDistance: ");
-  Serial.println(actualDistance);
-  Serial.print("Error: ");
-  Serial.println(error);
-
-  currSpeed = (int)(30 + Kp * error);
-  //currSpeed = (int)(30 + Kp * error + Ki * sumError); 
-  if(currSpeed < 0) {
-    currSpeed = 0;
-//    Serial.println("Speed is Negative");
-  }
-  if(currSpeed > 200) currSpeed = 200; 
-
-Serial.print("Current Speed: ");
-Serial.println(currSpeed);
-
-  //start taking new reading
-  takeReading();
-}
 
 //calibrate line sensors
 void calibrate() {
@@ -212,10 +116,10 @@ void calibrate() {
   leftThres = (leftMax + leftMin) / 2;
   rightThres = (rightMax + rightMin) / 2;
 
-//  Serial.print("leftThres: ");
-//  Serial.println(leftThres);
-//  Serial.print("rightThres: ");
-//  Serial.println(rightThres);
+  Serial.print("leftThres: ");
+  Serial.println(leftThres);
+  Serial.print("rightThres: ");
+  Serial.println(rightThres);
 }
 
 
@@ -305,6 +209,7 @@ void turnRight() {
   digitalWrite(rightIn1, LOW);
   digitalWrite(leftIn1, LOW);
 
+  //delay(1000);
 
   // continue forward to center of intersection
   digitalWrite(rightIn1, HIGH);
@@ -318,6 +223,8 @@ void turnRight() {
    //stop
   digitalWrite(rightIn1, LOW);
   digitalWrite(leftIn1, LOW);
+
+  //delay(1000);
 
   // turn right
   digitalWrite(rightIn2, HIGH);
@@ -346,6 +253,8 @@ void turnLeft() {
   digitalWrite(rightIn1, LOW);
   digitalWrite(leftIn1, LOW);
 
+  //delay(1000);
+
   // continue to center of intersection
   digitalWrite(rightIn1, HIGH);
   digitalWrite(leftIn1, HIGH);
@@ -358,6 +267,8 @@ void turnLeft() {
    //stop
   digitalWrite(rightIn1, LOW);
   digitalWrite(leftIn1, LOW);
+
+  //delay(1000);
 
   // turn left 
   digitalWrite(rightIn1, HIGH);
@@ -384,18 +295,15 @@ void loop() {
   int turnSignal = getTurnSignal();
   checkTurnSignal(turnSignal);
 
-  // if new reading from sensor do PID
-  if (newReading){
-    PID();
-  }
+
   // check if on line
   unsigned long left = checkSensor(leftPhoto);
   unsigned long right = checkSensor(rightPhoto);
 
 
-//  Serial.print(left);
-//  Serial.print(" ");
-//  Serial.println(right);
+  Serial.print(left);
+  Serial.print(" ");
+  Serial.println(right);
   
   // continue if on line
   if ((left < leftThres) && (right < rightThres)) {
@@ -419,15 +327,15 @@ void loop() {
 
   //slow left wheel if left sensor is high
   else if (left >= leftThres) {
-    analogWrite(PWMleft, currSpeed / 2);  // 28 = 1 V for 9 V source
-    analogWrite(PWMright, currSpeed * 3/2);
+    analogWrite(PWMleft, currSpeed - 18);  // 28 = 1 V for 9 V source
     Serial.println("Left is dark");
   }
 
   //slow right wheel if right sensor is high
   else if (right >= rightThres) {
-    analogWrite(PWMright, currSpeed / 2);
-    analogWrite(PWMleft, currSpeed * 3/2);
+    analogWrite(PWMright, currSpeed - 18);
     Serial.println("Right is dark");
   }
+
+
 }

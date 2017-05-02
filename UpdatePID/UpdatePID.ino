@@ -23,10 +23,11 @@ int ECHO = 3;
 double dist;
 double duration;
 double targetDistance = 0.5; // in meters
-double Ki = 0.75; //change these values
-double Kd=0; //change these values
-double Kp= 70; //change these values
+double Ki = 1; //change these values
+double Kd= 1; //change these values
+double Kp= 200; //change these values
 double sumError = 0;
+double prevError = -100;
 double prevDist = 0;
 
 unsigned long startTime;
@@ -148,34 +149,52 @@ double distance() { //in meters
 
 // PID algorithm
 void PID() {
-  
+  // calculate distance away
   double actualDistance = distance();
-  
-  if ((prevDist - actualDistance > 0.15 || prevDist - actualDistance < -0.15) && prevDist != 0){
+
+  // check to make sure new distance is within buffer
+  if ((prevDist - actualDistance > 0.2 || prevDist - actualDistance < -0.2) && prevDist != 0){
+    //else set equal to previous distance
     actualDistance = prevDist;
-    Serial.println("ACTUAL = PREV");
   }
-  
+
+  // calculate error
   double error = actualDistance - targetDistance; //gives us voltage (val between 0 to 255)
 
-  prevDist = actualDistance;
-  
-    
-//  sumError += error;
-//  if(sumError > 5) sumError = 2;
-//  if(sumError < 0) sumError = 0; 
-//
+  // update error build up and reassign if necessary
+  sumError += error;
+  if(sumError > 10) 
+    sumError = 5;
+  if(sumError < 0) 
+    sumError = 0; 
+
+
   Serial.print("actualDistance: ");
   Serial.println(actualDistance);
   Serial.print("Error: ");
   Serial.println(error);
 
-  currSpeed = (int)(30 + Kp * error);
-  //currSpeed = (int)(30 + Kp * error + Ki * sumError); 
+  //currSpeed = (int)(30 + Kp * error);
+
+  // do not use derivative control on first iteration
+  if (prevError == -100) {
+    currSpeed = (int)(30 + Kp * error + Ki * sumError);
+  }
+  else {
+    currSpeed = (int)(30 + Kp * error + Ki * sumError + Kd * (error - prevError));
+  }
+
+  //update previous variables
+  prevError = error;
+  prevDist = actualDistance;
+
+  // there are notnegative speeds
   if(currSpeed < 0) {
     currSpeed = 0;
 //    Serial.println("Speed is Negative");
   }
+
+  // maximum speed
   if(currSpeed > 200) currSpeed = 200; 
 
 Serial.print("Current Speed: ");
@@ -187,18 +206,22 @@ Serial.println(currSpeed);
 
 //calibrate line sensors
 void calibrate() {
+  // calibrate for 5 seconds
   EventTimer t;
   t.start(5000);
 
+  //initialize min and max 
   int leftMax = 0;
   int leftMin = 0xffff;
   int rightMax = 0;
   int rightMin = 0xffff;
 
+  //constantly check sensors
   while (!t.checkExpired()) {
     int tempLeft = checkSensor(leftPhoto);
     int tempRight = checkSensor(rightPhoto);
 
+    //update min and max
     if (tempLeft < leftMin)
       leftMin = tempLeft;
     else if (tempLeft > leftMax)
@@ -209,6 +232,7 @@ void calibrate() {
       rightMax = tempRight;
   }
 
+  // calculate threshold 
   leftThres = (leftMax + leftMin) / 2;
   rightThres = (rightMax + rightMin) / 2;
 
@@ -225,13 +249,18 @@ volatile uint8_t index = 0;
 
 // check for turn signal
 int getTurnSignal() {
+  // if whole signal received 
   if (dataReady)
   {
+    // reset data ready
     dataReady = 0;
+    // return code
     return code;
   }
+  //return 0 as no signal received
   return 0;
 }
+
 
 volatile uint16_t fallingEdge = 0;
 volatile uint16_t risingEdge = 0;
@@ -290,11 +319,13 @@ void checkTurnSignal(int ts) {
   if (ts == 147) {
     prepLeft = true;
     prepRight = false;
+    currSpeed = 20;
   }
   // right turn signal
   else if (ts == 146) {
     prepRight = true;
     prepLeft = false;
+    currSpeed = 20;
   }
 }
 
@@ -334,6 +365,9 @@ void turnRight() {
   //continue straight
   digitalWrite(rightIn1, HIGH);
   digitalWrite(leftIn1, HIGH);
+
+  // reset previous distance
+  //prevDist = 0;
   
   // reset turnSignal
   prepRight = false;
@@ -374,6 +408,9 @@ void turnLeft() {
   //continue straight
   digitalWrite(rightIn1, HIGH);
   digitalWrite(leftIn1, HIGH);
+
+  // reset previous distance
+  //prevDist = 0;
   
   // reset turnSignal
   prepLeft = false;
@@ -385,7 +422,7 @@ void loop() {
   checkTurnSignal(turnSignal);
 
   // if new reading from sensor do PID
-  if (newReading){
+  if (newReading && !prepRight && !prepLeft){
     PID();
   }
   // check if on line
