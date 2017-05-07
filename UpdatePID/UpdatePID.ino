@@ -25,7 +25,7 @@ double duration;
 double targetDistance = 0.5; // in meters
 double Ki = 1; //change these values
 double Kd= 1; //change these values
-double Kp= 200; //change these values
+double Kp= 120; //change these values
 double sumError = 0;
 double prevError = -100;
 double prevDist = 0;
@@ -153,7 +153,7 @@ void PID() {
   double actualDistance = distance();
 
   // check to make sure new distance is within buffer
-  if ((prevDist - actualDistance > 0.2 || prevDist - actualDistance < -0.2) && prevDist != 0){
+  if ((actualDistance < 0.05) && prevDist != 0){
     //else set equal to previous distance
     actualDistance = prevDist;
   }
@@ -195,7 +195,7 @@ void PID() {
   }
 
   // maximum speed
-  if(currSpeed > 200) currSpeed = 200; 
+  if(currSpeed > 100) currSpeed = 100; 
 
 Serial.print("Current Speed: ");
 Serial.println(currSpeed);
@@ -424,6 +424,10 @@ void loop() {
   // if new reading from sensor do PID
   if (newReading && !prepRight && !prepLeft){
     PID();
+  }
+  // if receive turn signal, set cruise speed (No PID)
+  else if(prepRight || prepLeft){
+    currSpeed = turnSpeed;
   }
   // check if on line
   unsigned long left = checkSensor(leftPhoto);
