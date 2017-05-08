@@ -23,9 +23,9 @@ int ECHO = 3;
 double dist;
 double duration;
 double targetDistance = 0.5; // in meters
-double Ki = 0.75; //change these values
+double Ki = 1; //change these values
 double Kd= 1; //change these values
-double Kp= 500; //change these values
+double Kp= 120; //change these values
 double sumError = 0;
 double prevError = -100;
 double prevDist = 0;
@@ -39,9 +39,7 @@ bool newReading;
 int currSpeed; //set the value in setup (when we can see his robot)
 
 // turn speed
-int turnSpeed = 50;
-// cruise speed
-int cruiseSpeed = 40;
+int turnSpeed = 25;
 
 // turn booleans
 bool prepLeft = false;
@@ -170,14 +168,20 @@ void PID() {
   if(sumError < 0) 
     sumError = 0; 
 
+
+  Serial.print("actualDistance: ");
+  Serial.println(actualDistance);
+  Serial.print("Error: ");
+  Serial.println(error);
+
   //currSpeed = (int)(30 + Kp * error);
 
   // do not use derivative control on first iteration
   if (prevError == -100) {
-    currSpeed = (int)(Kp * error + Ki * sumError);
+    currSpeed = (int)(30 + Kp * error + Ki * sumError);
   }
   else {
-    currSpeed = (int)(Kp * error + Ki * sumError + Kd * (error - prevError));
+    currSpeed = (int)(30 + Kp * error + Ki * sumError + Kd * (error - prevError));
   }
 
   //update previous variables
@@ -193,11 +197,14 @@ void PID() {
   // maximum speed
   if(currSpeed > 100) currSpeed = 100; 
 
+Serial.print("Current Speed: ");
+Serial.println(currSpeed);
+
   //start taking new reading
   takeReading();
 }
 
-
+//calibrate line sensors
 void calibrate() {
   // calibrate for 5 seconds
   EventTimer t;
@@ -205,23 +212,29 @@ void calibrate() {
 
   //initialize min and max 
   unsigned long leftMax = 0;
+  unsigned long leftMin = 30000;
   unsigned long rightMax = 0;
+  unsigned long rightMin = 30000;
 
   //constantly check sensors
   while (!t.checkExpired()) {
-    int tempLeft = checkSensor(leftPhoto);
-    int tempRight = checkSensor(rightPhoto);
+    unsigned long tempLeft = checkSensor(leftPhoto);
+    unsigned long tempRight = checkSensor(rightPhoto);
 
     //update min and max
-    if (tempLeft > leftMax)
+    if (tempLeft < leftMin)
+      leftMin = tempLeft;
+    else if (tempLeft > leftMax)
       leftMax = tempLeft;
-    if (tempRight > rightMax)
+    if (tempRight < rightMin)
+      rightMin = tempRight;
+    else if (tempRight > rightMax)
       rightMax = tempRight;
   }
-
+    
   // calculate threshold 
-  leftThres = leftMax / 2;
-  rightThres = rightMax / 2;
+  leftThres = (leftMax + leftMin) / 2;
+  rightThres = (rightMax + rightMin) / 2;
 
 //  Serial.print("leftThres: ");
 //  Serial.println(leftThres);
@@ -318,6 +331,7 @@ void checkTurnSignal(int ts) {
 
 //turn right
 void turnRight() {
+  Serial.println("Turn right");
   //stop
   digitalWrite(rightIn1, LOW);
   digitalWrite(leftIn1, LOW);
@@ -328,31 +342,20 @@ void turnRight() {
   digitalWrite(leftIn1, HIGH);
   analogWrite(PWMright, turnSpeed);
   analogWrite(PWMleft, turnSpeed);
-  turnTimer.start(250);
+  turnTimer.start(400);
   while(!turnTimer.checkExpired()){
   }
 
    //stop
   digitalWrite(rightIn1, LOW);
   digitalWrite(leftIn1, LOW);
-  
-  Serial.println("Start Turning");
-  
+
   // turn right
   digitalWrite(rightIn2, HIGH);
   digitalWrite(leftIn1, HIGH);
 
-  turnTimer.start(200);
+  turnTimer.start(830);
   while(!turnTimer.checkExpired()){
-  }
-
-  
-  //while not on line
-  while (checkSensor(rightPhoto) < rightThres) {
-  }
-
-  //while on intersecting line
-  while (checkSensor(rightPhoto) > rightThres){
   }
 
   // stop
@@ -372,6 +375,7 @@ void turnRight() {
 
 // turn left
 void turnLeft() {
+  Serial.println("Turn left");
   //stop
   digitalWrite(rightIn1, LOW);
   digitalWrite(leftIn1, LOW);
@@ -381,7 +385,7 @@ void turnLeft() {
   digitalWrite(leftIn1, HIGH);
   analogWrite(PWMright, turnSpeed);
   analogWrite(PWMleft, turnSpeed);
-  turnTimer.start(250);
+  turnTimer.start(400);
   while(!turnTimer.checkExpired()){
   }
 
@@ -393,18 +397,10 @@ void turnLeft() {
   digitalWrite(rightIn1, HIGH);
   digitalWrite(leftIn2, HIGH);
 
-  turnTimer.start(200);
+  turnTimer.start(830);
   while(!turnTimer.checkExpired()){
   }
 
-  //while not on line
-  while (checkSensor(leftPhoto) < leftThres) {
-  }
-
-  //while on intersecting line
-  while (checkSensor(leftPhoto) > leftThres){
-  }
-  
   // stop
   digitalWrite(rightIn1, LOW);
   digitalWrite(leftIn2, LOW);
@@ -412,6 +408,9 @@ void turnLeft() {
   //continue straight
   digitalWrite(rightIn1, HIGH);
   digitalWrite(leftIn1, HIGH);
+
+  // reset previous distance
+  //prevDist = 0;
   
   // reset turnSignal
   prepLeft = false;
@@ -428,11 +427,16 @@ void loop() {
   }
   // if receive turn signal, set cruise speed (No PID)
   else if(prepRight || prepLeft){
-    currSpeed = cruiseSpeed;
+    currSpeed = turnSpeed;
   }
   // check if on line
   unsigned long left = checkSensor(leftPhoto);
   unsigned long right = checkSensor(rightPhoto);
+
+
+//  Serial.print(left);
+//  Serial.print(" ");
+//  Serial.println(right);
   
   // continue if on line
   if ((left < leftThres) && (right < rightThres)) {
@@ -442,6 +446,7 @@ void loop() {
 
   // enter intersection
   else if ((left >= leftThres) && (right >= rightThres)) {
+    Serial.println("INTERSECTION!!");
 
     // check if turn right
     if (prepRight) {
@@ -457,11 +462,13 @@ void loop() {
   else if (left >= leftThres) {
     analogWrite(PWMleft, currSpeed / 2);  // 28 = 1 V for 9 V source
     analogWrite(PWMright, currSpeed * 3/2);
+    Serial.println("Left is dark");
   }
 
   //slow right wheel if right sensor is high
   else if (right >= rightThres) {
     analogWrite(PWMright, currSpeed / 2);
     analogWrite(PWMleft, currSpeed * 3/2);
+    Serial.println("Right is dark");
   }
 }
