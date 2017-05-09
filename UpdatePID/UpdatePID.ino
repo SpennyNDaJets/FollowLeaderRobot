@@ -1,6 +1,8 @@
 #include "EventTimer.h"
 
 EventTimer turnTimer;
+EventTimer signalTimer;
+
 
 // pin numbers
 int PWMright = 5;
@@ -24,8 +26,8 @@ double dist;
 double duration;
 double targetDistance = 0.5; // in meters
 double Ki = 0.75; //change these values
-double Kd= 1; //change these values
-double Kp= 500; //change these values
+double Kd= 5; //change these values
+double Kp= 300; //change these values
 double sumError = 0;
 double prevError = -100;
 double prevDist = 0;
@@ -57,6 +59,8 @@ void setup() {
   pinMode(PWMleft, INPUT);
   pinMode(leftIn2, INPUT);
   pinMode(leftIn1, INPUT);
+  pinMode(A2, OUTPUT);
+  pinMode(A5, OUTPUT);
 
   // turn wheels to start moving forward
   digitalWrite(rightIn2, LOW);
@@ -249,6 +253,10 @@ int getTurnSignal() {
 }
 
 
+
+
+
+
 volatile uint16_t fallingEdge = 0;
 volatile uint16_t risingEdge = 0;
 
@@ -300,6 +308,9 @@ ISR(TIMER1_CAPT_vect)
 }
 
 
+
+
+
 // check if left or right turn signal
 void checkTurnSignal(int ts) {
   // left turn signal
@@ -307,14 +318,43 @@ void checkTurnSignal(int ts) {
     prepLeft = true;
     prepRight = false;
     currSpeed = 20;
+
+    //turn left turn signal on
+    digitalWrite(A2, HIGH);
+    signalTimer.start(500);
+
+    //stop for 1 second
+    digitalWrite(rightIn1, LOW);
+    digitalWrite(leftIn1, LOW);
+    delay(1000);
+    //continue straight
+    digitalWrite(rightIn1, HIGH);
+    digitalWrite(leftIn1, HIGH);
   }
   // right turn signal
   else if (ts == 146) {
     prepRight = true;
     prepLeft = false;
     currSpeed = 20;
+
+    //turn right turn signal on
+    digitalWrite(A5, HIGH);
+    signalTimer.start(500);
+
+    //stop for 1 second
+    digitalWrite(rightIn1, LOW);
+    digitalWrite(leftIn1, LOW);
+    delay(1000);
+    //continue straight
+    digitalWrite(rightIn1, HIGH);
+    digitalWrite(leftIn1, HIGH);
   }
 }
+
+
+
+
+
 
 //turn right
 void turnRight() {
@@ -335,8 +375,6 @@ void turnRight() {
    //stop
   digitalWrite(rightIn1, LOW);
   digitalWrite(leftIn1, LOW);
-  
-  Serial.println("Start Turning");
   
   // turn right
   digitalWrite(rightIn2, HIGH);
@@ -362,13 +400,16 @@ void turnRight() {
   //continue straight
   digitalWrite(rightIn1, HIGH);
   digitalWrite(leftIn1, HIGH);
-
-  // reset previous distance
-  //prevDist = 0;
   
   // reset turnSignal
   prepRight = false;
+  // turn off turnSignal
+  digitalWrite(A2, LOW);
 }
+
+
+
+
 
 // turn left
 void turnLeft() {
@@ -415,7 +456,39 @@ void turnLeft() {
   
   // reset turnSignal
   prepLeft = false;
+  // turn off turnSignal
+  digitalWrite(A5, LOW);
 }
+
+
+
+//flash turn signal
+void flashSignal(){
+  if (prepRight){
+    if (signalTimer.checkExpired()){
+      if (digitalRead(A5) == LOW){
+        digitalWrite(A5, HIGH);
+      }
+      else{
+        digitalWrite(A5, LOW);
+      }
+      signalTimer.start(500);
+    }
+  }
+  else{
+    if (signalTimer.checkExpired()){
+      if (digitalRead(A2) == LOW){
+        digitalWrite(A2, HIGH);
+      }
+      else{
+        digitalWrite(A2, LOW);
+      }
+      signalTimer.start(500);
+    }
+  }
+  
+}
+
 
 void loop() {
   //check for line sensor
@@ -429,6 +502,8 @@ void loop() {
   // if receive turn signal, set cruise speed (No PID)
   else if(prepRight || prepLeft){
     currSpeed = cruiseSpeed;
+    //flash signal
+    flashSignal();
   }
   // check if on line
   unsigned long left = checkSensor(leftPhoto);
