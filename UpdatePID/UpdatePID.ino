@@ -1,6 +1,8 @@
 #include "EventTimer.h"
 
+// timer for beigining turns
 EventTimer turnTimer;
+// timer for turn signal
 EventTimer signalTimer;
 
 
@@ -11,6 +13,9 @@ int rightIn1 = 2;
 int leftIn1 = 7;
 int leftIn2 = 9;
 int PWMleft = 6;
+
+//left turn signal on A2
+//right turn signal on A5
 
 int leftPhoto = 13;
 int rightPhoto = 12;
@@ -25,9 +30,9 @@ int ECHO = 3;
 double dist;
 double duration;
 double targetDistance = 0.5; // in meters
-double Ki = 0.75; //change these values
-double Kd= 5; //change these values
-double Kp= 300; //change these values
+double Ki = 0.6; //integral constant
+double Kd= 5; //derivative constant
+double Kp= 500; //proportional constant
 double sumError = 0;
 double prevError = -100;
 double prevDist = 0;
@@ -39,7 +44,6 @@ bool newReading;
 
 // current speed
 int currSpeed; //set the value in setup (when we can see his robot)
-
 // turn speed
 int turnSpeed = 50;
 // cruise speed
@@ -106,6 +110,7 @@ void setup() {
 
 // send of signal of ultrasonic
 void takeReading(){
+  //send out signal
   digitalWrite(TRIGGER, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIGGER, LOW);
@@ -113,21 +118,23 @@ void takeReading(){
   // start timing
   startTime = micros();
 
+  // do not take new reading which signal has not returned
   newReading = false;
 }
 
+
+
 // retreive echo
 void detectEcho(){
+  // take time at which signal returned
   endTime = micros();
+  // find difference in time
   delta = endTime - startTime;
-//  Serial.print("Start Time: ");
-//  Serial.println(startTime);
-//  Serial.print("End Time: ");
-//  Serial.println(endTime);
-//  Serial.print("Delta: ");
-//  Serial.println(delta);
+  // set boolean to allow for new reading to be taken
   newReading = true;
 }
+
+
 
 // check line sensor
 unsigned long checkSensor(int pin) {
@@ -138,20 +145,27 @@ unsigned long checkSensor(int pin) {
   pinMode(pin, INPUT);             //set low
   unsigned long s = micros();     //start timing
 
+  // wait till pin goes low
   while (digitalRead(pin) == HIGH) {
 
   }
 
-  return micros() - s;            // find final time
+  // return time that it takes capacitor to discharge
+  return micros() - s;
 }
+
+
 
 // distance calculation
 double distance() { //in meters
   double s = 343; // speed of sound in meters/s 
   double durationSeconds = ((delta/2.0)/1000000);
   double distance = (durationSeconds*s);
+  // 0.15 meter offset from timer start and echo going high
   return distance - 0.15;
 }
+
+
 
 // PID algorithm
 void PID() {
@@ -167,14 +181,12 @@ void PID() {
   // calculate error
   double error = actualDistance - targetDistance; //gives us voltage (val between 0 to 255)
 
-  // update error build up and reassign if necessary
+  // update error build up and reassign to limit integral windup
   sumError += error;
   if(sumError > 10) 
     sumError = 5;
   if(sumError < 0) 
     sumError = 0; 
-
-  //currSpeed = (int)(30 + Kp * error);
 
   // do not use derivative control on first iteration
   if (prevError == -100) {
@@ -191,7 +203,6 @@ void PID() {
   // there are notnegative speeds
   if(currSpeed < 0) {
     currSpeed = 0;
-//    Serial.println("Speed is Negative");
   }
 
   // maximum speed
@@ -201,7 +212,7 @@ void PID() {
   takeReading();
 }
 
-
+// calibrate Line sensors
 void calibrate() {
   // calibrate for 5 seconds
   EventTimer t;
@@ -226,11 +237,6 @@ void calibrate() {
   // calculate threshold 
   leftThres = leftMax / 2;
   rightThres = rightMax / 2;
-
-//  Serial.print("leftThres: ");
-//  Serial.println(leftThres);
-//  Serial.print("rightThres: ");
-//  Serial.println(rightThres);
 }
 
 
@@ -251,10 +257,6 @@ int getTurnSignal() {
   //return 0 as no signal received
   return 0;
 }
-
-
-
-
 
 
 volatile uint16_t fallingEdge = 0;
@@ -315,18 +317,21 @@ ISR(TIMER1_CAPT_vect)
 void checkTurnSignal(int ts) {
   // left turn signal
   if (ts == 147) {
+    //save turn signal until next intersection
     prepLeft = true;
     prepRight = false;
-    currSpeed = 20;
 
-    //turn left turn signal on
+    //turn left turn signal on and right turn signal off
     digitalWrite(A2, HIGH);
+    digitalWrite(A5, LOW);
+    //start timer to start blinking
     signalTimer.start(500);
 
-    //stop for 1 second
+    //stop for 1 second to avoid hitting lead bot
     digitalWrite(rightIn1, LOW);
     digitalWrite(leftIn1, LOW);
     delay(1000);
+    
     //continue straight
     digitalWrite(rightIn1, HIGH);
     digitalWrite(leftIn1, HIGH);
@@ -335,10 +340,10 @@ void checkTurnSignal(int ts) {
   else if (ts == 146) {
     prepRight = true;
     prepLeft = false;
-    currSpeed = 20;
 
     //turn right turn signal on
     digitalWrite(A5, HIGH);
+    digitalWrite(A2, LOW);
     signalTimer.start(500);
 
     //stop for 1 second
@@ -350,10 +355,6 @@ void checkTurnSignal(int ts) {
     digitalWrite(leftIn1, HIGH);
   }
 }
-
-
-
-
 
 
 //turn right
@@ -368,6 +369,7 @@ void turnRight() {
   digitalWrite(leftIn1, HIGH);
   analogWrite(PWMright, turnSpeed);
   analogWrite(PWMleft, turnSpeed);
+  // time necessary to enter center of interection
   turnTimer.start(250);
   while(!turnTimer.checkExpired()){
   }
@@ -380,12 +382,13 @@ void turnRight() {
   digitalWrite(rightIn2, HIGH);
   digitalWrite(leftIn1, HIGH);
 
+// turn for at least 0.2 s to ensure right sensor is not on black line
   turnTimer.start(200);
   while(!turnTimer.checkExpired()){
   }
 
   
-  //while not on line
+  // while not on line
   while (checkSensor(rightPhoto) < rightThres) {
   }
 
@@ -404,11 +407,8 @@ void turnRight() {
   // reset turnSignal
   prepRight = false;
   // turn off turnSignal
-  digitalWrite(A2, LOW);
+  digitalWrite(A5, LOW);
 }
-
-
-
 
 
 // turn left
@@ -457,9 +457,8 @@ void turnLeft() {
   // reset turnSignal
   prepLeft = false;
   // turn off turnSignal
-  digitalWrite(A5, LOW);
+  digitalWrite(A2, LOW);
 }
-
 
 
 //flash turn signal
@@ -530,12 +529,14 @@ void loop() {
 
   //slow left wheel if left sensor is high
   else if (left >= leftThres) {
-    analogWrite(PWMleft, currSpeed / 2);  // 28 = 1 V for 9 V source
+    //maintain average speed by increasing one side as much as other side is decreased
+    analogWrite(PWMleft, currSpeed / 2);
     analogWrite(PWMright, currSpeed * 3/2);
   }
 
   //slow right wheel if right sensor is high
   else if (right >= rightThres) {
+    //maintain average speed by increasing one side as much as other side is decreased
     analogWrite(PWMright, currSpeed / 2);
     analogWrite(PWMleft, currSpeed * 3/2);
   }
