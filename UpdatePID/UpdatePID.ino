@@ -31,8 +31,8 @@ double dist;
 double duration;
 double targetDistance = 0.5; // in meters
 double Ki = 0.6; //integral constant
-double Kd= 5; //derivative constant
-double Kp= 500; //proportional constant
+double Kd= 10; //derivative constant
+double Kp= 400; //proportional constant
 double sumError = 0;
 double prevError = -100;
 double prevDist = 0;
@@ -184,7 +184,7 @@ void PID() {
   // update error build up and reassign to limit integral windup
   sumError += error;
   if(sumError > 10) 
-    sumError = 5;
+    sumError = 10;
   if(sumError < 0) 
     sumError = 0; 
 
